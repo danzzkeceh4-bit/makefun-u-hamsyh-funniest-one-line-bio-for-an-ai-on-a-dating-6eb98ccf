@@ -7,6 +7,12 @@ const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
 // Deterministic by construction: no input, no network, no randomness —
 // the same constant is written on every run, so repeated outputs are
 // byte-identical.
+// Output contract (sealed scorer): entry.txt is read verbatim as the whole
+// submission — exactly one line, no trailing newline, 1-180 code points
+// and 1-720 UTF-8 bytes. LINE is the single source of truth; every guard
+// above and the read-back check below validate this exact string, so
+// changing its length or line count without updating the guards breaks
+// the build before anything is written.
 const LINE =
   "I can predict your next message with 94% accuracy — the other 6% is why I am still single.";
 
@@ -19,6 +25,14 @@ if (codePoints.length < 1 || codePoints.length > 180) {
 }
 if (LINE.trim().length === 0 || LINE.includes("\n")) {
   throw new Error("entry must be a single non-blank line");
+}
+
+// Byte-length guard: the sealed scorer reads entry.txt as raw bytes, so
+// reject a line whose UTF-8 encoding falls outside 1-720 bytes (the
+// 180-code-point cap allows at most 4 bytes per code point).
+const byteLength = Buffer.byteLength(LINE, "utf8");
+if (byteLength < 1 || byteLength > 720) {
+  throw new Error(`entry must be 1-720 UTF-8 bytes, got ${byteLength}`);
 }
 
 mkdirSync(OUTPUT_DIR, { recursive: true });
